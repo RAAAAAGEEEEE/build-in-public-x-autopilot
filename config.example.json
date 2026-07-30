@@ -1,23 +1,18 @@
 {
   "_comment": "Copy to config.json and edit. config.json is gitignored: it holds your API keys.",
-
   "conversations_dir": "/path/to/your/exported/conversations",
   "timezone": "Europe/Paris",
   "publish_previous_day": true,
-
   "drafts_dir": "drafts",
   "_manifest_comment": "Where to remember how much of each conversation has already been turned into a post. This is what makes the run incremental instead of date-based; see the README. Delete the file to start over.",
   "manifest_path": "state/consumed.json",
   "candidates": 3,
-
   "_persona_comment": "The single most important setting. Describe WHO reads you and what your project is, in plain words. Without it the drafts drift into engineering changelogs.",
   "persona": "Write for a smart reader who is NOT a developer: a founder, a marketer, someone building a business. They understand 'server', 'bug', 'backup'. They do not know and will scroll past ACL, POSIX, commit, repo, staging. Say what a thing MEANT, not what it was called. Technical words are seasoning, not the meal: one or two per post at most.\n\nMy project: <one or two sentences about what you are building, so the post can name it accurately>.\n\nI work alone. I may work on several different projects, so check what the facts are actually about before attributing the work to any one of them.",
-
   "language": "English",
   "_translate_comment": "Leave translate_to empty for a single language. Set it to post the same content to a second audience; it is a translation of the approved post, not a second draft, so both audiences read the same story.",
   "translate_to": "",
   "translated_opening": "",
-
   "_keys_comment": "Only fill in the ones you have. Missing providers are skipped, and the cascade uses whatever is left. All four have a free tier and none needs a credit card.",
   "keys": {
     "CEREBRAS_API_KEY": "",
@@ -25,19 +20,21 @@
     "OPENROUTER_API_KEY": "",
     "GEMINI_API_KEY": ""
   },
-
   "_telegram_comment": "Optional. Without it, drafts print to stdout. A private channel is a good inbox: it reaches your phone and nothing is public until you copy it out.",
   "telegram": {
     "bot_token": "",
     "chat_id": ""
   },
-
-  "_rules_comment": "Mechanical checks. Every one exists because a model broke it in testing.",
+  "_rules_comment": "Mechanical checks. Every one exists because a model broke it in testing. preview_chars is the one that matters most: the X timeline only shows the first ~280 characters.",
   "rules": {
     "min_chars": 400,
-    "max_chars": 700,
-    "hard_max_chars": 900,
-    "required_opening": "Yesterday I worked on",
+    "max_chars": 1500,
+    "hard_max_chars": 25000,
+    "preview_chars": 280,
+    "required_opening": "",
+    "banned_openings": [
+      "yesterday i worked on"
+    ],
     "max_jargon": 2,
     "solo": true,
     "internal_names": []

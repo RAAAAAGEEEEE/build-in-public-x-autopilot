@@ -20,14 +20,29 @@ from dataclasses import dataclass
 class Rules:
     """Everything a post must satisfy. Tune per account and language."""
 
+    # Length barely matters, and getting this wrong cost two rewrites. The
+    # real limits on X are 280 characters on the free tier, 25,000 with
+    # Premium, 100,000 in an Article. What actually constrains the writing is
+    # something else entirely -- see preview_chars below.
     min_chars: int = 400
-    max_chars: int = 700
-    hard_max_chars: int = 900
+    max_chars: int = 1500
+    hard_max_chars: int = 25_000
+
+    # THE ONE THAT MATTERS. The timeline shows only the first ~280 characters
+    # of a long post, then "Show more". Everything past that exists only for
+    # readers who already decided to click. So the first two lines -- the hook,
+    # and what you were working on -- must fit inside this window, or the feed
+    # cuts mid-sentence.
+    preview_chars: int = 280
 
     # An opening line the model must reproduce verbatim. Leave empty to skip.
-    # Publishing the previous day's work? Say "Yesterday I worked on" -- the
-    # date matters and readers cannot tell, but you can.
     required_opening: str = ""
+
+    # Openings that waste the preview window announcing the subject instead of
+    # landing it. "Yesterday I worked on ..." was MANDATORY here until it was
+    # measured against a real post: it spent a fifth of the visible window
+    # saying something no reader can verify and none of them care about.
+    banned_openings: tuple[str, ...] = ("yesterday i worked on",)
 
     # Phrases that mark a post as generic. Extend freely.
     banned_phrases: tuple[str, ...] = (
@@ -116,6 +131,24 @@ def check(post: str, rules: Rules, *, source_facts: str = "") -> list[str]:
     if length > rules.hard_max_chars:
         problems.append(f"length {length} exceeds the hard maximum "
                         f"{rules.hard_max_chars}")
+
+    # The preview window: the first two non-empty lines are the hook and the
+    # subject, and they are all most readers will ever see.
+    visible = [ln for ln in post.split("\n") if ln.strip()][:2]
+    head = "\n".join(visible)
+    if len(head) > rules.preview_chars:
+        problems.append(
+            f"the first two lines are {len(head)} characters, past the "
+            f"{rules.preview_chars}-character timeline preview: the feed will "
+            f"cut them mid-sentence"
+        )
+
+    for opening in rules.banned_openings:
+        if folded.startswith(_fold(opening)):
+            problems.append(
+                f'opens with "{opening}", which announces the subject instead '
+                f"of landing it -- open on the most surprising fact instead"
+            )
 
     if rules.required_opening and not folded.startswith(_fold(rules.required_opening)):
         problems.append(f'must start with "{rules.required_opening}"')

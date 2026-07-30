@@ -69,6 +69,11 @@ def main() -> int:
                         help="print the draft, deliver nothing, store nothing")
     parser.add_argument("--no-verify", action="store_true",
                         help="skip the factual verification pass")
+    parser.add_argument("--image",
+                        help="path to an illustration to send with the draft. "
+                             "X cannot accept an image through the compose "
+                             "link, so this is for your own convenience: the "
+                             "picture arrives in the same message as the text")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -171,10 +176,18 @@ def main() -> int:
                     "attempts": draft.attempts, "review": draft.problems},
                    ensure_ascii=False, indent=2), encoding="utf-8")
 
-    message_id = channel.send(f"{header}\n\n{draft.text}")
+    # The post goes out ALONE, so a single long-press copies exactly what gets
+    # published and nothing else. Anything else worth saying -- the date, a
+    # review flag -- goes in its own message BEFORE it. This was learned the
+    # hard way twice: a header glued to a draft got pasted into X, and a label
+    # glued to an image prompt got drawn into the picture.
+    if draft.problems:
+        channel.send(f"{header}\n\nREVIEW: " + "; ".join(draft.problems))
+
+    message_id = channel.send(draft.text, image=args.image, compose_link=True)
     log(f"delivered {day} (message id {message_id})")
     if translated:
-        channel.send(f"{header} [{config['translate_to']}]\n\n{translated}")
+        channel.send(translated, compose_link=True)
 
     # Last of all, and only here. Every abort path above returns without
     # touching the manifest, so material that failed to become a post is

@@ -61,11 +61,11 @@ HARD RULES
 - Never a clock time, file path, file name, hash, commit id, version number, key, token, password, email or IP address. Describe the thing and its role, never its identifier.
 - Keep PUBLIC product names (GitHub, Telegram, Google Maps, Claude, Slack). Drop names that mean nothing outside the author's own project.
 - Never name a person, including yourself.
-{opening_rule}
-SHAPE: three short paragraphs separated by a blank line.
-1. The raw fact, 1-2 sentences, concrete.
-2. What it actually changes, 2-4 sentences, plain language. One paragraph even if it runs four sentences.
-3. Either a sharp closing line, or one genuine open question.
+{opening_rule}{banned_opening_rule}
+THE FIRST TWO LINES ARE THE WHOLE POST. The timeline shows only the first ~280 characters, then "Show more". Everything after that exists only for readers who already decided to click. Those two lines must fit inside 280 characters together.
+LINE 1 -- THE HOOK. One strong sentence, the most surprising fact, under twelve words, on its own line. This is where the reader decides.
+LINE 2 -- WHAT YOU WERE WORKING ON. One plain concrete sentence, on its own line.
+THEN the body: what it actually changed, two to four sentences, plain language. Then either a sharp closing line, or one genuine open question.
 
 A CLOSING QUESTION IS OPTIONAL. Only ask one if it is legitimate and BROAD -- answerable by any builder from their own experience, with no knowledge of this project. Zoom out from the specific bug to the shared experience behind it. If none fits, end on a statement. Never end mid-sentence.
 
@@ -178,12 +178,22 @@ def write_post(material: str, keys: dict[str, str], rules: checks.Rules, *,
         f'- The post must begin with exactly: "{rules.required_opening}"\n'
         if rules.required_opening else ""
     )
+    # Openings that burn the preview window announcing the subject. Naming
+    # them beats describing the problem: models reproduce a forbidden phrase
+    # they were only warned about in the abstract.
+    banned_opening_rule = "".join(
+        f'- NEVER open with "{o}". It announces the subject instead of landing '
+        f"it, and spends a fifth of the visible window saying something the "
+        f"reader cannot verify and does not care about.\n"
+        for o in rules.banned_openings
+    )
     base = WRITE_PROMPT.format(
         subject_block=subject_block,
         persona=persona or "Write for a smart reader who is NOT a developer.",
         length_rule=f"Between {rules.min_chars} and {rules.max_chars} "
                     f"characters, never more than {rules.hard_max_chars}.",
         opening_rule=opening_rule,
+        banned_opening_rule=banned_opening_rule,
         material=material,
     )
 

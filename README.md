@@ -243,6 +243,70 @@ those should not decide what gets read.
 
 ---
 
+## Length is not the constraint. The preview is.
+
+This section exists because getting it wrong cost two rewrites, and the mistake
+is easy to repeat.
+
+The real limits on X are **280 characters** on the free tier, **25,000** with
+Premium, and **100,000** in an Article. Two earlier versions of this pipeline
+enforced 400-700, then 180-280, both of them numbers nobody had checked. The
+first produced posts too long to publish at all; the second amputated posts
+that had plenty of room.
+
+What actually constrains the writing is different: **the timeline shows only
+the first ~280 characters, then "Show more"**. Everything past that exists only
+for readers who already decided to click. So the total length barely matters
+and the opening carries everything:
+
+```
+LINE 1   the hook       one strong sentence, under twelve words
+LINE 2   the subject    what you were working on, plainly
+---------------------- these two must fit in 280 characters together
+THEN     the body       what it changed, then the close
+```
+
+`preview_chars` in `Rules` enforces exactly that, and it is the check worth
+keeping if you keep only one.
+
+**Do not open with "Yesterday I worked on ..."** — or any phrase that announces
+the subject rather than landing it. It was a *mandatory* opening here until it
+was measured against a real post: it spent a fifth of the visible window saying
+something no reader can verify and none of them care about. `banned_openings`
+now rejects it.
+
+---
+
+## What goes in a message a human will copy
+
+One rule, learned twice in one week, in two different places:
+
+**A message meant to be copied contains nothing but what should be copied.**
+
+- A draft sent as `"draft for 2026-07-29\n\n<post>"` got pasted into X *with
+  the header*.
+- An image prompt sent as `"IMAGE PROMPT (paste as is)\n\n<prompt>"` got
+  pasted into an image model, which obligingly **drew the words "IMAGE PROMPT"
+  onto a noticeboard in the picture**.
+
+So the post travels alone. Anything else — the date, a review flag, a prompt
+label — goes in its own message. The "Open in X" button is an *inline keyboard
+button*, deliberately not a link inside the text, for the same reason: a URL in
+the caption would be copied along with the post and published.
+
+X's compose link carries **text only**. No image can be attached that way, and
+that restriction is deliberate on their side: a third-party page must not be
+able to attach a file to a message you are about to publish. Pass `--image` and
+the picture arrives in the same Telegram message as the text, ready to attach
+by hand.
+
+On **iOS**, the button opens Telegram's in-app browser, which is not logged
+into X. Either long-press the button and choose *Open in Safari*, or set your
+browser once under *Telegram → Settings → Data and Storage*. On desktop it just
+works.
+
+---
+
 ## Configuring the checks
 
 `rules` in `config.json` maps to `pipeline/checks.Rules`. Every default is
@@ -251,7 +315,8 @@ there because a model broke it during testing:
 | Rule | What it caught |
 |---|---|
 | `min_chars` / `max_chars` | Drafts at 35 and 280 characters, cut mid-sentence |
-| `required_opening` | The model dropping the opening line it was given |
+| `preview_chars` | A hook and subject spilling past the timeline preview, cut mid-sentence in the feed |
+| `banned_openings` | "Yesterday I worked on ...", which burns a fifth of the visible window announcing the subject |
 | `max_jargon` | Posts readable only by the author |
 | `solo` | "the team decided", "my client's site" — people who do not exist |
 | `internal_names` | Project codenames meaningless outside the repo |
