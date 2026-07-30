@@ -4,9 +4,10 @@ Turn your AI coding conversations into a daily "build in public" post — using
 only free LLM tiers, with a human approving every post before it goes out.
 
 You already explain your work to an AI all day. That transcript is the raw
-material for a build-in-public post. This reads yesterday's conversations,
-picks the one subject worth telling, drafts a post, checks it mechanically,
-verifies every claim against the source, and sends it to you for review.
+material for a build-in-public post. This reads whatever you have said since
+its last run, picks the one subject worth telling, drafts a post, checks it
+mechanically, verifies every claim against the source, and sends it to you for
+review.
 
 **It never publishes anything.** Drafts land in Telegram or on stdout. You copy
 what you like. There is no posting code in this repository, on purpose.
@@ -90,8 +91,8 @@ where the reasoning pays for itself.
 ```
 conversations/           exported .md files, one per session
       │
-      ├─ 1. ingest       no LLM: pick the day, drop noise, keep each
-      │                  conversation's tail, cap the total
+      ├─ 1. ingest       no LLM: take what is NEW since last run, drop
+      │                  noise, share a character budget, cap the total
       │
       ├─ 2. judge        a reasoning model reads only the OPENINGS and picks
       │                  the single most tellable subject
@@ -119,6 +120,51 @@ then reads only what won.
 
 ---
 
+## Do not select conversations by date
+
+This is the mistake worth reading before you write your own version. The first
+build of this pipeline asked for "yesterday's files". That is wrong twice over,
+and neither failure produces an error message.
+
+**A conversation file is named after the session's start.** Leave a session
+open across days and its entire content inherits the opening date. In one real
+case a session opened on 28 July held every bit of the 29th's and the 30th's
+work — 877 KB of it — while the only file named for the 30th was a 9 KB aside.
+Asking for "yesterday" returned the aside and missed the actual day.
+
+**Exports arrive by sync, at an imprecise moment.** A job reading the folder on
+a schedule will sometimes read it seconds before the files land, and find
+nothing. The log says `0 conversations` and looks like a quiet day.
+
+So the pipeline ignores dates entirely. It records how many characters of each
+file it has already consumed (`state/consumed.json`) and takes only what came
+after. A file that grows yields its new material whatever its name says; an
+unchanged file yields nothing; a file that shrank — re-exported in another
+format — is simply re-read whole.
+
+The manifest is written **only after a post has been delivered**. Every abort
+path leaves it untouched, so material that failed to become a post is still
+waiting for the next run instead of being silently burned.
+
+One consequence worth stating: this pipeline is not idempotent by day, it is
+incremental. Running it twice in a row gives you a post and then nothing. That
+is the intended behaviour — the second run genuinely has nothing new to say.
+Use `--date` to rebuild an old post from the files named for that day.
+
+### The budget must be shared fairly
+
+A related trap, in the same stage. The obvious way to enforce a character
+ceiling is to serve the largest conversations first and stop when the budget
+runs out. On a busy day that dropped six conversations out of nine: one
+talkative session ate everything, and the post could not mention the day's real
+subject.
+
+The budget is now shared smallest-first. Short conversations pass whole,
+whatever they leave unspent flows to the long ones, and nothing disappears —
+the longest are merely trimmed, from the front, where the least is decided.
+
+---
+
 ## Setup
 
 Requires Python 3.9+ and nothing else. No dependencies.
@@ -131,27 +177,28 @@ cp config.example.json config.json
 
 Edit `config.json`:
 
-1. **`conversations_dir`** — where your exported conversations live. Any tool
-   that writes one Markdown file per session works, as long as the filename or
-   the header carries the date. Patterns live in `pipeline/ingest.py`; add
-   yours there if it differs.
-2. **`keys`** — fill in the providers you have. Missing ones are skipped and
+1. **`conversations_dir`** — where your exported conversations live. See
+   [Getting your conversations there](#getting-your-conversations-there) below.
+2. **`manifest_path`** — where to remember what has already been turned into a
+   post. Defaults to `state/consumed.json`. Delete it to start over; it is
+   local state, keep it out of git.
+3. **`keys`** — fill in the providers you have. Missing ones are skipped and
    the cascade uses what is left. All four have a free tier; none needs a card.
-3. **`persona`** — the single most important setting. Describe who reads you
+4. **`persona`** — the single most important setting. Describe who reads you
    and what you are building, in plain words. Without it, drafts drift into
    engineering changelogs.
 
 Then:
 
 ```bash
-# See what it would produce, deliver nothing
-python3 run.py --config config.json --date 2026-07-29 --dry-run
+# See what it would produce, deliver nothing, consume nothing
+python3 run.py --config config.json --dry-run
 
-# Real run: store the draft and deliver it
+# Real run: store the draft, deliver it, then record what it consumed
 python3 run.py --config config.json
 ```
 
-Daily, from cron. It publishes the previous day by default, which means the
+Daily, from cron. It labels the post with the previous day, which means the
 whole day is complete when it is processed:
 
 ```cron
@@ -159,7 +206,40 @@ whole day is complete when it is processed:
 ```
 
 Nobody can tell a post was written about yesterday. You can, and it buys you a
-complete day of material plus a free choice of publishing hour.
+complete day of material plus a free choice of publishing hour. The exact
+minute does not matter, because the run reads new material rather than a
+schedule — that is the whole point of the previous section.
+
+---
+
+## Getting your conversations there
+
+The pipeline needs one Markdown file per session in a folder it can read. How
+they get there is up to you; two decisions matter.
+
+**Exporting.** Any exporter works as long as it writes one file per session
+and keeps a stable name per session, so a growing session stays the same file
+and the delta keeps working. A session that is re-exported under a new name
+every time will be re-read from scratch each run — correct, but wasteful. The
+reference setup produces `claude-conversation-YYYY-MM-DD-<session id>.md`,
+with a `Date: ...` header line inside.
+
+**Getting them to the machine that runs this.** If you code on a laptop and run
+this on a server, you need the files to travel. Any of these is fine:
+
+- **A sync tool** (Syncthing, Dropbox, `rsync` on a timer). This is the
+  reference setup, with Syncthing pointed at the export folder on one side and
+  `conversations_dir` on the other.
+- **A `git` repo** of your exports, pulled before the run.
+- **Nothing at all**, if you code on the same machine that runs this. Point
+  `conversations_dir` at the export folder directly.
+
+One warning that applies to every one of them: **do not order or select files
+by modification time.** Sync tools rewrite files in bulk, so every mtime
+collapses to the moment of the sync. On the reference machine all fifty-odd
+exports share a single mtime, to the second. The filename and the header are
+the only timestamps that mean anything — and per the previous section, even
+those should not decide what gets read.
 
 ---
 

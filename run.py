@@ -23,6 +23,9 @@ DEFAULTS = {
     "timezone": "UTC",
     "publish_previous_day": True,
     "drafts_dir": "drafts",
+    # Remembers how much of each conversation has already been turned into a
+    # post, so a run picks up exactly where the last one stopped.
+    "manifest_path": "state/consumed.json",
     "persona": "",
     "language": "English",
     "translate_to": "",
@@ -57,7 +60,11 @@ def build_channel(config: dict) -> deliver.Delivery:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--date", help="the day WORKED, YYYY-MM-DD")
+    parser.add_argument("--date",
+                        help="rebuild from the files NAMED for this day "
+                             "(YYYY-MM-DD) instead of from new material. "
+                             "For reproducing an old post; see the warning "
+                             "in pipeline/ingest.py about session dates")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the draft, deliver nothing, store nothing")
     parser.add_argument("--no-verify", action="store_true",
@@ -81,10 +88,22 @@ def main() -> int:
         deliver.alert(channel, "conversations folder not found", str(folder))
         return 1
 
-    conversations = ingest.load_day(folder, day)
+    # `day` is only a label from here on: the name of the draft file and the
+    # header you read in Telegram. What goes INTO the post is whatever is new,
+    # regardless of which day the files claim to belong to.
+    manifest = ingest.Manifest.load(Path(config["manifest_path"]))
+    if args.date:
+        conversations, skipped = ingest.load_day(folder, day), []
+        manifest = None  # replaying an old day must not consume anything
+    else:
+        conversations, skipped = ingest.load_new(folder, manifest)
+    for name, why in skipped:
+        log(f"  skipped {name}: {why}")
+
     if not conversations:
-        # Not an error worth shouting about: some days you simply did not work.
-        log(f"no conversations exported for {day}, nothing to do")
+        # Not an error worth shouting about: nothing new since the last run
+        # means you simply did not work, or already wrote about it.
+        log(f"no new material for {day}, nothing to do")
         return 0
 
     corpus = ingest.build_corpus(conversations)
@@ -156,6 +175,13 @@ def main() -> int:
     log(f"delivered {day} (message id {message_id})")
     if translated:
         channel.send(f"{header} [{config['translate_to']}]\n\n{translated}")
+
+    # Last of all, and only here. Every abort path above returns without
+    # touching the manifest, so material that failed to become a post is
+    # still waiting for the next run instead of being silently burned.
+    if manifest is not None:
+        manifest.save()
+        log(f"manifest updated ({len(manifest.seen)} files tracked)")
     return 0
 
 

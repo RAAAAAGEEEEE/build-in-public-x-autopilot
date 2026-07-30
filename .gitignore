@@ -4,6 +4,11 @@ config.json
 # Generated drafts contain your own work; they are yours, not the repo's.
 drafts/
 
+# How much of each conversation has already been turned into a post.
+# Local state, specific to one machine. Committing it would make another
+# checkout believe your material had already been used.
+state/
+
 __pycache__/
 *.pyc
 run.log

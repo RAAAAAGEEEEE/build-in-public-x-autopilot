@@ -6,6 +6,8 @@
   "publish_previous_day": true,
 
   "drafts_dir": "drafts",
+  "_manifest_comment": "Where to remember how much of each conversation has already been turned into a post. This is what makes the run incremental instead of date-based; see the README. Delete the file to start over.",
+  "manifest_path": "state/consumed.json",
   "candidates": 3,
 
   "_persona_comment": "The single most important setting. Describe WHO reads you and what your project is, in plain words. Without it the drafts drift into engineering changelogs.",
