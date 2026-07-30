@@ -1,0 +1,9 @@
+# Your configuration holds API keys. Never commit it.
+config.json
+
+# Generated drafts contain your own work; they are yours, not the repo's.
+drafts/
+
+__pycache__/
+*.pyc
+run.log
