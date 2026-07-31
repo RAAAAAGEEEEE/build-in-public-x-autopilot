@@ -1,4 +1,4 @@
-# bip-autopilot
+# build-in-public-x-autopilot
 
 Turn your AI coding conversations into a daily "build in public" post — using
 only free LLM tiers, with a human approving every post before it goes out.
@@ -171,7 +171,7 @@ Requires Python 3.9+ and nothing else. No dependencies.
 
 ```bash
 git clone <this repo>
-cd bip-autopilot
+cd build-in-public-x-autopilot
 cp config.example.json config.json
 ```
 
@@ -202,7 +202,7 @@ Daily, from cron. It labels the post with the previous day, which means the
 whole day is complete when it is processed:
 
 ```cron
-0 12 * * * cd /path/to/bip-autopilot && /usr/bin/python3 run.py --config config.json >> run.log 2>&1
+0 12 * * * cd /path/to/build-in-public-x-autopilot && /usr/bin/python3 run.py --config config.json >> run.log 2>&1
 ```
 
 Nobody can tell a post was written about yesterday. You can, and it buys you a
