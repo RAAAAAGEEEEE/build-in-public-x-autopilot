@@ -307,6 +307,96 @@ works.
 
 ---
 
+## Optional: let Claude Code generate and attach the illustration
+
+Everything above runs unattended, with no LLM key needed for images. This
+section is different: it is not part of the pipeline, it is a manual workflow
+that only exists if you use Claude Code with the Chrome extension, and it ends
+with a human clicking Post. It is documented here because it closes the loop
+between a finished draft and a tweet with an illustration attached, and
+because every trap in it is worth knowing before you hit it yourself.
+
+### What it does
+
+With Claude Code's browser-control tools connected to your Chrome, you can ask
+it to: open an image model in one tab, generate an illustration from a prompt,
+open X's compose window in another tab, paste the post, paste the image, and
+stop — leaving you a fully prepared tweet with nothing left but to read it and
+click Post.
+
+### Why this cannot be part of the automated pipeline
+
+Two hard limits, both confirmed by testing, not by assumption:
+
+- **The browser-control tools are unavailable in headless mode.** A `claude -p`
+  process — the kind a cron job runs — cannot see or use them, even when
+  explicitly allowed. They only exist inside an interactive session with the
+  extension connected. There is no cron-compatible version of this step.
+- **X's compose link accepts text only.** Attaching a file through a URL is
+  refused on their side, deliberately: a third-party page should not be able
+  to attach a file to a post you are about to publish. Feeding a file from
+  your server through a browser's file-upload tool is refused for the same
+  reason, and correctly so — the tool exists specifically to stop a script
+  from uploading arbitrary server files into a web page.
+
+The way around the second limit is not a bypass, it is the legitimate path:
+**copy the image in one tab, paste it in the other.** Nothing leaves your
+machine; both tabs are your own logged-in sessions. An image model's own
+"copy image" button puts it on your OS clipboard exactly like copying any
+other picture, and a normal paste (`Ctrl+V` / `Cmd+V`) into X's compose box
+attaches it the same way it would if you had copied it from Photos.
+
+### Prerequisites
+
+- Claude Code with the Chrome extension installed and connected to the same
+  Google account you use for Gemini, and the same X account you post from.
+- An image model you can drive by typing a prompt and clicking a "copy image"
+  button — Gemini's "Nano Banana" family is what this was built and tested
+  against.
+- Willingness to sit through it once: the first run finds the exact button
+  positions and click order for your setup, and you standardize a prompt
+  style. After that it is fast every time.
+
+### How it goes, step by step
+
+1. **Draft the image prompt** from what the post is actually about. A concrete
+   scene beats an abstract concept every time — a model renders a real desk
+   convincingly and blurs an invented mechanism into mush. If you want a
+   consistent "series" look, describe a *grammar* (viewpoint, palette,
+   composition) rather than naming a specific illustrator: models hold a
+   caricatured idea of an artist's signature and apply it instead of drawing
+   the scene, which reliably produces a worse result than describing the style
+   directly. Compare both on one real prompt before committing to either.
+2. **Generate, then wait.** 20 to 40 seconds is normal for a good image model;
+   a screenshot taken too early just shows the prompt still sitting in the
+   input box, which looks like a failure and is not one.
+3. **Copy the image** with the model's own copy button — not a screenshot, not
+   a right-click "save as". The clipboard is what makes the next step work
+   without touching your disk or your server.
+4. **Open X's compose window**, click into the text field, type or paste the
+   post, then paste the image (`Ctrl+V` / `Cmd+V`). Scroll down far enough to
+   confirm the thumbnail actually attached — "Edit" and "Add description"
+   under it means it worked.
+5. **Stop there.** Whatever drives this — a script, an agent, you — the last
+   click is a human's, on purpose. Automated publishing is the one mistake you
+   cannot take back.
+
+### Traps worth knowing before you hit them
+
+- **A message meant to be pasted whole must contain nothing but what should be
+  pasted.** A prompt that included its own instructional label ("IMAGE PROMPT,
+  paste as is") got the label drawn into the picture, on a signboard, by the
+  model. Keep instructions for a human in a separate message from anything a
+  human — or a model — will copy verbatim.
+- **On a brand-new chat with an image model, pressing Return sometimes inserts
+  a newline instead of submitting**, because the input is multiline. Click the
+  send arrow instead. On an already-open conversation, Return usually works.
+- **The upload widget will refuse a path from your disk or server outright** —
+  that is correct behavior, not a bug to work around. Use the clipboard path
+  above instead of fighting it.
+
+---
+
 ## Configuring the checks
 
 `rules` in `config.json` maps to `pipeline/checks.Rules`. Every default is
