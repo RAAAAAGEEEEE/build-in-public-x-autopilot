@@ -136,7 +136,8 @@ def judge_subject(index: str, keys: dict[str, str], *,
     try:
         text, provider, _ = providers.complete(
             SUBJECT_JUDGE_PROMPT.format(index=index), keys,
-            prefer="gemini", temperature=0.2, log=log)
+            claude_model="claude-opus-5", prefer="gemini",
+            temperature=0.2, log=log)
     except providers.AllProvidersFailed as exc:
         log(f"subject judge unavailable, writing without a focus: {exc}")
         return None
@@ -238,7 +239,8 @@ def verify_post(post: str, material: str, keys: dict[str, str], *,
     try:
         text, provider, _ = providers.complete(
             VERIFY_PROMPT.format(post=post, material=material), keys,
-            prefer="gemini", temperature=0.0, log=log)
+            claude_model="claude-opus-5", prefer="gemini",
+            temperature=0.0, log=log)
     except providers.AllProvidersFailed as exc:
         log(f"verifier unavailable, passing unverified: {exc}")
         return True, []

@@ -1,21 +1,34 @@
-"""Free-tier LLM cascade.
+"""LLM cascade: the paid Claude Max subscription first, free tiers as backup.
 
-Every provider below was tested against a real free-tier account, and the
-limits are the ones the APIs actually reported -- not the ones their
-marketing pages claim. Where a documented limit turned out to be wrong, the
-comment says so.
+Project rule, restated 07/08/2026: any automatic text writing goes through
+the Claude Max subscription that is paid for anyway. Third-party free tiers
+stay acceptable *in second position*, as a fallback when the subscription is
+unavailable -- which is exactly how they are wired below.
 
-The cascade tries providers in order and returns the first usable answer.
-A provider that is out of quota, rate-limited, or returns a truncated
-response is skipped rather than retried, so one dead key never stalls a run.
+Every free-tier provider was tested against a real account, and the limits
+are the ones the APIs actually reported, not the ones their marketing pages
+claim. Where a documented limit turned out to be wrong, the comment says so.
+
+The cascade tries the subscription, then each free provider in order, and
+returns the first usable answer. A provider that is out of quota, rate
+limited, or returns a truncated response is skipped rather than retried, so
+one dead key never stalls a run.
 """
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
+
+# Wrapper for the VPS Claude Max subscription (token in
+# /root/.claude/cron_token.env, never purchased API credits). It lives in the
+# landing repo because the blog editorial chain used it first.
+CLAUDE_CALL = Path("/opt/claude/tools/claude_call.sh")
 
 
 @dataclass
@@ -159,9 +172,43 @@ def _post(provider: Provider, api_key: str, prompt: str, max_tokens: int,
     return text.strip(), data.get("usage") or {}
 
 
+def _claude_subscription(prompt: str, model: str, timeout: int, log) -> str | None:
+    """One call to the Claude Max subscription. None on any failure.
+
+    Model ids are spelled out in full rather than passed as the `sonnet`
+    alias: the CLI resolves bare aliases to whatever version IT considers
+    current, which on 07/08/2026 was the previous generation, silently. The
+    wrapper now translates aliases too, but being explicit here means this
+    file does not depend on that.
+    """
+    if not CLAUDE_CALL.is_file():
+        log(f"claude: {CLAUDE_CALL} not found, falling back to free tiers")
+        return None
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                         encoding="utf-8") as f:
+            f.write(prompt)
+            path = f.name
+        proc = subprocess.run([str(CLAUDE_CALL), path, model, str(timeout)],
+                              capture_output=True, text=True, timeout=timeout + 60)
+        if proc.returncode != 0:
+            log(f"claude: exit {proc.returncode}, falling back to free tiers")
+            return None
+        text = (proc.stdout or "").strip()
+        return text or None
+    except Exception as exc:
+        log(f"claude: {type(exc).__name__}: {exc}, falling back to free tiers")
+        return None
+    finally:
+        if path:
+            Path(path).unlink(missing_ok=True)
+
+
 def complete(prompt: str, keys: dict[str, str], *, max_tokens: int = 4000,
              temperature: float = 0.4, timeout: int = 90,
              prefer: str | None = None,
+             claude_model: str = "claude-sonnet-5",
              log=lambda msg: None) -> tuple[str, str, dict]:
     """Run `prompt` through the cascade.
 
@@ -172,14 +219,28 @@ def complete(prompt: str, keys: dict[str, str], *, max_tokens: int = 4000,
     counts against it, and a truncated answer is worse than a slow one. Cap
     the *content* length in your prompt, not here.
 
-    prefer names a provider to try first -- use it to send judging work to a
-    reasoning model and writing work to a plain one.
+    claude_model picks which subscription model answers. Writing work uses
+    Sonnet; judging and verifying use `claude-opus-5`, because a text checked
+    by the same model that wrote it gets rubber-stamped -- the reviewer has
+    to be a DIFFERENT and stronger model for the check to mean anything.
+
+    prefer names a free-tier provider to try first, and only matters once the
+    subscription is unavailable and we are down in the fallback cascade.
     """
+    failures: list[str] = []
+
+    # The paid subscription first. Only if it yields nothing do we fall back
+    # to the free tiers below -- that ordering IS the project rule, not a
+    # performance preference.
+    text = _claude_subscription(prompt, claude_model, timeout, log)
+    if text:
+        return text, f"claude/{claude_model}", {}
+    failures.append("claude: subscription unavailable")
+
     order = list(PROVIDERS)
     if prefer:
         order.sort(key=lambda p: p.name != prefer)
 
-    failures: list[str] = []
     for provider in order:
         api_key = keys.get(provider.env_key, "")
         if not api_key:
