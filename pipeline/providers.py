@@ -16,9 +16,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-# Wrapper for the VPS Claude Max subscription (token in
-# /root/.claude/cron_token.env, never purchased API credits). It lives in the
-# landing repo because the blog editorial chain used it first.
+# External wrapper script around the Claude CLI (authenticated with a
+# subscription, never purchased API credits). It is NOT part of this
+# repository; see docs/CONFIGURATION.md.
 CLAUDE_CALL = Path("/opt/claude/tools/claude_call.sh")
 
 
